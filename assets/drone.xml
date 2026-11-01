@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<TextureAtlas imagePath="drone.png">
+    <SubTexture name="idle_0" x="0" y="0" width="64" height="64" />
+    <SubTexture name="idle_1" x="64" y="0" width="64" height="64" />
+    <SubTexture name="idle_2" x="128" y="0" width="64" height="64" />
+    <SubTexture name="idle_3" x="192" y="0" width="64" height="64" />
+
+    <SubTexture name="move_forward_0" x="0" y="64" width="64" height="64" />
+    <SubTexture name="move_forward_1" x="64" y="64" width="64" height="64" />
+    <SubTexture name="move_forward_2" x="128" y="64" width="64" height="64" />
+    <SubTexture name="move_forward_3" x="192" y="64" width="64" height="64" />
+
+    <SubTexture name="turn_left_0" x="0" y="128" width="64" height="64" />
+    <SubTexture name="turn_left_1" x="64" y="128" width="64" height="64" />
+    <SubTexture name="turn_left_2" x="128" y="128" width="64" height="64" />
+    <SubTexture name="turn_left_3" x="192" y="128" width="64" height="64" />
+
+    <SubTexture name="turn_right_0" x="0" y="192" width="64" height="64" />
+    <SubTexture name="turn_right_1" x="64" y="192" width="64" height="64" />
+    <SubTexture name="turn_right_2" x="128" y="192" width="64" height="64" />
+    <SubTexture name="turn_right_3" x="192" y="192" width="64" height="64" />
+
+    <SubTexture name="pickup_0" x="0" y="256" width="64" height="64" />
+    <SubTexture name="pickup_1" x="64" y="256" width="64" height="64" />
+    <SubTexture name="pickup_2" x="128" y="256" width="64" height="64" />
+    <SubTexture name="pickup_3" x="192" y="256" width="64" height="64" />
+</TextureAtlas>
