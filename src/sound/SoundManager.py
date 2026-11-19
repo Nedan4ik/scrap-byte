@@ -184,3 +184,6 @@ class SoundManager:
             self.ambient_playing = False
         except Exception:
             pass
+
+SoundManager.getInstance = SoundManager.get_instance
+SoundManager.playUiClick = SoundManager.play_ui_click

@@ -15,35 +15,76 @@ class CodeTab:
         self.scroll_col: int = 0
         self.selection_start: tuple[int, int] | None = None
 
-    def get_text(self) -> str:
+
+    @property
+    def cursorRow(self):
+        return self.cursor_row
+
+    @cursorRow.setter
+    def cursorRow(self, val):
+        self.cursor_row = val
+
+    @property
+    def cursorCol(self):
+        return self.cursor_col
+
+    @cursorCol.setter
+    def cursorCol(self, val):
+        self.cursor_col = val
+
+    @property
+    def scrollRow(self):
+        return self.scroll_row
+
+    @scrollRow.setter
+    def scrollRow(self, val):
+        self.scroll_row = val
+
+    @property
+    def scrollCol(self):
+        return self.scroll_col
+
+    @scrollCol.setter
+    def scrollCol(self, val):
+        self.scroll_col = val
+
+    @property
+    def selectionStart(self):
+        return self.selection_start
+
+    @selectionStart.setter
+    def selectionStart(self, val):
+        self.selection_start = val
+
+    def getText(self) -> str:
         return "\n".join(self.lines)
 
-    def set_text(self, text: str):
+    def setText(self, text: str):
         self.lines = text.split("\n") if text else [""]
         self.cursor_row = min(self.cursor_row, len(self.lines) - 1)
         self.cursor_col = min(self.cursor_col, len(self.lines[self.cursor_row]))
-        self.clear_selection()
+        self.clearSelection()
 
-    def has_selection(self) -> bool:
+    def hasSelection(self) -> bool:
         return self.selection_start is not None and self.selection_start != (self.cursor_row, self.cursor_col)
 
-    def clear_selection(self):
+    def clearSelection(self):
         self.selection_start = None
 
-    def select_all(self):
+    def selectAll(self):
         self.selection_start = (0, 0)
         self.cursor_row = len(self.lines) - 1
         self.cursor_col = len(self.lines[self.cursor_row])
 
-    def get_selection_range(self) -> tuple[tuple[int, int], tuple[int, int]] | None:
-        if not self.has_selection():
+    def getSelectionRange(self) -> tuple[tuple[int, int], tuple[int, int]] | None:
+        if not self.hasSelection():
             return None
         p1 = self.selection_start
         p2 = (self.cursor_row, self.cursor_col)
         return (p1, p2) if p1 < p2 else (p2, p1)
 
-    def get_selected_text(self) -> str:
-        sel = self.get_selection_range()
+    def getSelectedText(self) -> str:
+        sel = self.getSelectionRange()
         if not sel:
             return ""
         (r1, c1), (r2, c2) = sel
@@ -55,8 +96,8 @@ class CodeTab:
         res.append(self.lines[r2][:c2])
         return "\n".join(res)
 
-    def delete_selection(self) -> bool:
-        sel = self.get_selection_range()
+    def deleteSelection(self) -> bool:
+        sel = self.getSelectionRange()
         if not sel:
             return False
         (r1, c1), (r2, c2) = sel
@@ -66,12 +107,12 @@ class CodeTab:
         self.lines.insert(r1, prefix + suffix)
         self.cursor_row = r1
         self.cursor_col = c1
-        self.clear_selection()
+        self.clearSelection()
         return True
 
-    def insert_char(self, char: str):
-        if self.has_selection():
-            self.delete_selection()
+    def insertChar(self, char: str):
+        if self.hasSelection():
+            self.deleteSelection()
 
         if "\n" in char:
             parts = char.split("\n")
@@ -91,8 +132,8 @@ class CodeTab:
         self.cursor_col += len(char)
 
     def backspace(self):
-        if self.has_selection():
-            self.delete_selection()
+        if self.hasSelection():
+            self.deleteSelection()
             return
 
         if self.cursor_col > 0:
@@ -107,8 +148,8 @@ class CodeTab:
             self.lines[self.cursor_row] = prev + cur
 
     def delete(self):
-        if self.has_selection():
-            self.delete_selection()
+        if self.hasSelection():
+            self.deleteSelection()
             return
 
         cur = self.lines[self.cursor_row]
@@ -119,8 +160,8 @@ class CodeTab:
             self.lines[self.cursor_row] += nxt
 
     def newline(self):
-        if self.has_selection():
-            self.delete_selection()
+        if self.hasSelection():
+            self.deleteSelection()
 
         cur = self.lines[self.cursor_row]
         indent_len = len(cur) - len(cur.lstrip(" "))
@@ -134,41 +175,41 @@ class CodeTab:
         self.cursor_col = len(indent_str)
 
     def tab(self):
-        self.insert_char("    ")
+        self.insertChar("    ")
 
-    def move_up(self):
+    def moveUp(self):
         if self.cursor_row > 0:
             self.cursor_row -= 1
             self.cursor_col = min(self.cursor_col, len(self.lines[self.cursor_row]))
 
-    def move_down(self):
+    def moveDown(self):
         if self.cursor_row < len(self.lines) - 1:
             self.cursor_row += 1
             self.cursor_col = min(self.cursor_col, len(self.lines[self.cursor_row]))
 
-    def move_left(self):
+    def moveLeft(self):
         if self.cursor_col > 0:
             self.cursor_col -= 1
         elif self.cursor_row > 0:
             self.cursor_row -= 1
             self.cursor_col = len(self.lines[self.cursor_row])
 
-    def move_right(self):
+    def moveRight(self):
         if self.cursor_col < len(self.lines[self.cursor_row]):
             self.cursor_col += 1
         elif self.cursor_row < len(self.lines) - 1:
             self.cursor_row += 1
             self.cursor_col = 0
 
-    def move_home(self):
+    def moveHome(self):
         cur = self.lines[self.cursor_row]
         indent = len(cur) - len(cur.lstrip(" "))
         self.cursor_col = 0 if self.cursor_col == indent else indent
 
-    def move_end(self):
+    def moveEnd(self):
         self.cursor_col = len(self.lines[self.cursor_row])
 
-    def move_word_left(self):
+    def moveWordLeft(self):
         cur = self.lines[self.cursor_row]
         col = self.cursor_col
         if col == 0:
@@ -182,7 +223,7 @@ class CodeTab:
             col -= 1
         self.cursor_col = col
 
-    def move_word_right(self):
+    def moveWordRight(self):
         cur = self.lines[self.cursor_row]
         col = self.cursor_col
         n = len(cur)
@@ -197,17 +238,17 @@ class CodeTab:
             col += 1
         self.cursor_col = col
 
-    def move_doc_start(self):
+    def moveDocStart(self):
         self.cursor_row = 0
         self.cursor_col = 0
 
-    def move_doc_end(self):
+    def moveDocEnd(self):
         self.cursor_row = len(self.lines) - 1
         self.cursor_col = len(self.lines[self.cursor_row])
 
-    def delete_word_backspace(self):
-        if self.has_selection():
-            self.delete_selection()
+    def deleteWordBackspace(self):
+        if self.hasSelection():
+            self.deleteSelection()
             return
         cur = self.lines[self.cursor_row]
         start_col = self.cursor_col
@@ -222,9 +263,9 @@ class CodeTab:
         self.lines[self.cursor_row] = cur[:col] + cur[start_col:]
         self.cursor_col = col
 
-    def delete_word_delete(self):
-        if self.has_selection():
-            self.delete_selection()
+    def deleteWordDelete(self):
+        if self.hasSelection():
+            self.deleteSelection()
             return
         cur = self.lines[self.cursor_row]
         start_col = self.cursor_col
@@ -239,7 +280,7 @@ class CodeTab:
             col += 1
         self.lines[self.cursor_row] = cur[:start_col] + cur[col:]
 
-    def ensure_cursor_visible(self, visible_rows: int, visible_cols: int):
+    def ensureCursorVisible(self, visible_rows: int, visible_cols: int):
         if self.cursor_row < self.scroll_row:
             self.scroll_row = self.cursor_row
         elif self.cursor_row >= self.scroll_row + visible_rows:
@@ -249,6 +290,32 @@ class CodeTab:
             self.scroll_col = self.cursor_col
         elif self.cursor_col >= self.scroll_col + visible_cols:
             self.scroll_col = self.cursor_col - visible_cols + 1
+
+
+
+    # Aliases
+    get_text = getText
+    set_text = setText
+    has_selection = hasSelection
+    clear_selection = clearSelection
+    select_all = selectAll
+    get_selection_range = getSelectionRange
+    get_selected_text = getSelectedText
+    delete_selection = deleteSelection
+    insert_char = insertChar
+    move_up = moveUp
+    move_down = moveDown
+    move_left = moveLeft
+    move_right = moveRight
+    move_home = moveHome
+    move_end = moveEnd
+    move_word_left = moveWordLeft
+    move_word_right = moveWordRight
+    move_doc_start = moveDocStart
+    move_doc_end = moveDocEnd
+    delete_word_backspace = deleteWordBackspace
+    delete_word_delete = deleteWordDelete
+    ensure_cursor_visible = ensureCursorVisible
 
 
 class Renderer(Widget):
@@ -348,6 +415,10 @@ class Renderer(Widget):
         height: int = 560,
         interpretator=None,
         level=None,
+        onRun=None,
+        onInfo=None,
+        onLayoutChange=None,
+        onExecutionFinish=None,
         on_run=None,
         on_info=None,
         on_layout_change=None,
@@ -356,10 +427,14 @@ class Renderer(Widget):
         super().__init__(x, y, width, height)
         self.interpretator = interpretator
         self.level = level if level is not None else getattr(interpretator, "level", None)
-        self.on_run = on_run
-        self.on_info = on_info
-        self.on_layout_change = on_layout_change
-        self.on_execution_finish = on_execution_finish
+        self.onRun = onRun if onRun is not None else on_run
+        self.onInfo = onInfo if onInfo is not None else on_info
+        self.onLayoutChange = onLayoutChange if onLayoutChange is not None else on_layout_change
+        self.onExecutionFinish = onExecutionFinish if onExecutionFinish is not None else on_execution_finish
+        self.on_run = self.onRun
+        self.on_info = self.onInfo
+        self.on_layout_change = self.onLayoutChange
+        self.on_execution_finish = self.onExecutionFinish
         self.custom_layout: bool = False
 
         try:
@@ -369,7 +444,7 @@ class Renderer(Widget):
 
         self.tabs: list[CodeTab] = []
         self.active_tab_index: int = 0
-        self.add_tab(title="Скрипт 1", content="forward()\nturn_right()\nforward()")
+        self.addTab(title="Скрипт 1", content="forward()\nturn_right()\nforward()")
 
         self.font = None
         self.ui_font = None
@@ -418,9 +493,90 @@ class Renderer(Widget):
         self.anim_pulse_timer: float = 0.0
 
         if self.interpretator:
-            self.interpretator.on_line_step = self._handle_line_step
+            self.interpretator.on_line_step = self._handleLineStep
 
-    def _init_fonts(self):
+
+    @property
+    def customLayout(self):
+        return self.custom_layout
+
+    @customLayout.setter
+    def customLayout(self, val):
+        self.custom_layout = val
+
+    @property
+    def activeTabIndex(self):
+        return self.active_tab_index
+
+    @activeTabIndex.setter
+    def activeTabIndex(self, val):
+        self.active_tab_index = val
+
+    @property
+    def showConsole(self):
+        return self.show_console
+
+    @showConsole.setter
+    def showConsole(self, val):
+        self.show_console = val
+
+    @property
+    def consoleLogs(self):
+        return self.console_logs
+
+    @consoleLogs.setter
+    def consoleLogs(self, val):
+        self.console_logs = val
+
+    @property
+    def consoleScroll(self):
+        return self.console_scroll
+
+    @consoleScroll.setter
+    def consoleScroll(self, val):
+        self.console_scroll = val
+
+    @property
+    def isFocused(self):
+        return self.is_focused
+
+    @isFocused.setter
+    def isFocused(self, val):
+        self.is_focused = val
+
+    @property
+    def isExecuting(self):
+        return self.is_executing
+
+    @isExecuting.setter
+    def isExecuting(self, val):
+        self.is_executing = val
+
+    @property
+    def statusText(self):
+        return self.status_text
+
+    @statusText.setter
+    def statusText(self, val):
+        self.status_text = val
+
+    @property
+    def statusColor(self):
+        return self.status_color
+
+    @statusColor.setter
+    def statusColor(self, val):
+        self.status_color = val
+
+    @property
+    def infoOpen(self) -> bool:
+        return self.info_open
+
+    @infoOpen.setter
+    def infoOpen(self, val: bool):
+        self.info_open = val
+
+    def _initFonts(self):
         if self.font is None:
             try:
                 self.font = pygame.font.SysFont("Consolas", 14, bold=True)
@@ -441,7 +597,7 @@ class Renderer(Widget):
                 if hasattr(self.ui_font, "set_bold"):
                     self.ui_font.set_bold(True)
 
-    def _set_clipboard(self, text: str):
+    def _setClipboard(self, text: str):
         self._clipboard_buffer = text
         try:
             if pygame.scrap.get_init():
@@ -449,7 +605,7 @@ class Renderer(Widget):
         except Exception:
             pass
 
-    def _get_clipboard(self) -> str:
+    def _getClipboard(self) -> str:
         try:
             if pygame.scrap.get_init():
                 raw = pygame.scrap.get(pygame.SCRAP_TEXT)
@@ -459,7 +615,7 @@ class Renderer(Widget):
             pass
         return getattr(self, "_clipboard_buffer", "")
 
-    def add_tab(self, title: str | None = None, content: str = "") -> CodeTab:
+    def addTab(self, title: str | None = None, content: str = "") -> CodeTab:
         if not title:
             title = f"Скрипт {len(self.tabs) + 1}"
         tab = CodeTab(title=title, content=content)
@@ -467,40 +623,40 @@ class Renderer(Widget):
         self.active_tab_index = len(self.tabs) - 1
         return tab
 
-    def close_tab(self, index: int) -> bool:
+    def closeTab(self, index: int) -> bool:
         if 0 <= index < len(self.tabs):
             self.tabs.pop(index)
             if not self.tabs:
-                self.add_tab()
+                self.addTab()
             elif self.active_tab_index >= len(self.tabs):
                 self.active_tab_index = len(self.tabs) - 1
             return True
         return False
 
-    def select_tab(self, index: int):
+    def selectTab(self, index: int):
         if 0 <= index < len(self.tabs):
             self.active_tab_index = index
 
-    def get_current_tab(self) -> CodeTab | None:
+    def getCurrentTab(self) -> CodeTab | None:
         if 0 <= self.active_tab_index < len(self.tabs):
             return self.tabs[self.active_tab_index]
         return None
 
-    def get_current_code(self) -> str:
-        tab = self.get_current_tab()
-        return tab.get_text() if tab else ""
+    def getCurrentCode(self) -> str:
+        tab = self.getCurrentTab()
+        return tab.getText() if tab else ""
 
-    def set_current_code(self, code: str):
-        tab = self.get_current_tab()
+    def setCurrentCode(self, code: str):
+        tab = self.getCurrentTab()
         if tab:
-            tab.set_text(code)
+            tab.setText(code)
 
-    def get_tab_count(self) -> int:
+    def getTabCount(self) -> int:
         return len(self.tabs)
 
     @property
     def info_open(self) -> bool:
-        cur = self.get_current_tab()
+        cur = self.getCurrentTab()
         return bool(cur and cur.title == "Информация о уровне")
 
     @info_open.setter
@@ -508,10 +664,10 @@ class Renderer(Widget):
         if not val:
             for idx, tab in enumerate(self.tabs):
                 if tab.title == "Информация о уровне" and self.active_tab_index == idx:
-                    self.select_tab(0)
+                    self.selectTab(0)
                     break
 
-    def _notify_layout_change(self):
+    def _notifyLayoutChange(self):
         self.custom_layout = True
         if self.on_layout_change:
             try:
@@ -519,7 +675,7 @@ class Renderer(Widget):
             except Exception:
                 pass
 
-    def to_dict(self) -> dict:
+    def toDict(self) -> dict:
         return {
             "x": int(self.x),
             "y": int(self.y),
@@ -533,7 +689,7 @@ class Renderer(Widget):
             "active_tab": self.active_tab_index,
         }
 
-    def load_dict(self, data: dict):
+    def loadDict(self, data: dict):
         if not isinstance(data, dict):
             return
         if "x" in data and "y" in data:
@@ -546,15 +702,15 @@ class Renderer(Widget):
             self.tabs = [CodeTab(title=t.get("title", "Скрипт 1"), content=t.get("content", "")) for t in data["tabs"]]
             self.active_tab_index = min(max(0, data.get("active_tab", 0)), len(self.tabs) - 1)
 
-    def set_status(self, text: str, color: tuple[int, int, int] = (150, 160, 180)):
+    def setStatus(self, text: str, color: tuple[int, int, int] = (150, 160, 180)):
         self.status_text = text
         self.status_color = color
 
-    def show_level_info(self):
+    def showLevelInfo(self):
         target_title = "Информация о уровне"
         for idx, tab in enumerate(self.tabs):
             if tab.title == target_title:
-                self.select_tab(idx)
+                self.selectTab(idx)
                 return
 
         lvl = self.level
@@ -571,25 +727,25 @@ class Renderer(Widget):
         if not content:
             content = "Информация о уровне отсутствует."
 
-        self.add_tab(title=target_title, content=content)
+        self.addTab(title=target_title, content=content)
 
-    def toggle_info(self):
-        self.show_level_info()
+    def toggleInfo(self):
+        self.showLevelInfo()
         if self.on_info:
             self.on_info()
 
-    def run_code(self):
+    def runCode(self):
         if self.is_executing:
             return
 
         from sound.SoundManager import SoundManager
-        SoundManager.get_instance().play_ui_click()
+        SoundManager.getInstance().playUiClick()
 
-        tab = self.get_current_tab()
+        tab = self.getCurrentTab()
         if not tab:
             return
 
-        code = tab.get_text()
+        code = tab.getText()
         self.show_console = True
         self.console_logs.append(("▶ [Запуск скрипта...]", (78, 201, 176)))
 
@@ -602,8 +758,8 @@ class Renderer(Widget):
             self.executing_line = 0
             self.anim_exec_alpha = 0.0
             self.anim_exec_line = 0.0
-            self.interpretator.on_line_step = self._handle_line_step
-            self.set_status("Выполняется...", (241, 196, 15))
+            self.interpretator.on_line_step = self._handleLineStep
+            self.setStatus("Выполняется...", (241, 196, 15))
 
             def _on_finish(result: ExecutionResult):
                 self.is_executing = False
@@ -617,7 +773,7 @@ class Renderer(Widget):
                             self.console_logs.append((l, (212, 220, 235)))
 
                 if result.success:
-                    self.set_status("Успешно выполнено", (78, 201, 176))
+                    self.setStatus("Успешно выполнено", (78, 201, 176))
                     self.console_logs.append(("✔ [Завершено успешно]", (78, 201, 176)))
                 else:
                     err = str(result.error) if result.error else "Неизвестная ошибка"
@@ -625,7 +781,7 @@ class Renderer(Widget):
                         short_err = err[:33] + "..."
                     else:
                         short_err = err
-                    self.set_status(f"Ошибка: {short_err}", (244, 71, 71))
+                    self.setStatus(f"Ошибка: {short_err}", (244, 71, 71))
                     self.console_logs.append((f"✖ [Ошибка]: {err}", (244, 71, 71)))
 
                 vis_lines = max(1, (self.console_h - 22) // 16)
@@ -639,7 +795,7 @@ class Renderer(Widget):
 
             self.interpretator.run_async(code, on_complete=_on_finish)
         else:
-            self.set_status("Скрипт отправлен", (78, 201, 176))
+            self.setStatus("Скрипт отправлен", (78, 201, 176))
             self.console_logs.append(("✔ [Скрипт отправлен]", (78, 201, 176)))
             if self.on_execution_finish:
                 try:
@@ -647,12 +803,12 @@ class Renderer(Widget):
                 except Exception:
                     pass
 
-    def _handle_line_step(self, line_no: int | None):
+    def _handleLineStep(self, line_no: int | None):
         self.executing_line = line_no
         if line_no is not None:
             if self.anim_exec_alpha < 0.08:
                 self.anim_exec_line = float(line_no)
-            tab = self.get_current_tab()
+            tab = self.getCurrentTab()
             if tab and self.active_tab_index == getattr(self, "executing_tab_index", self.active_tab_index):
                 con_h = self.console_h if self.show_console else 0
                 editor_h = self.height - self.tab_bar_h - self.status_bar_h - con_h
@@ -663,7 +819,7 @@ class Renderer(Widget):
                     tab.scroll_row = max(0, line_no - visible_rows + 2)
 
     @classmethod
-    def highlight_line(cls, line: str) -> list[tuple[str, tuple[int, int, int]]]:
+    def highlightLine(cls, line: str) -> list[tuple[str, tuple[int, int, int]]]:
         if not line:
             return []
         tokens: list[tuple[str, tuple[int, int, int]]] = []
@@ -714,24 +870,24 @@ class Renderer(Widget):
             tokens.append((line[start:idx], cls.COLOR_TEXT))
         return tokens
 
-    def _get_title_bar_rect(self) -> pygame.Rect:
+    def _getTitleBarRect(self) -> pygame.Rect:
         return pygame.Rect(self.x, self.y, self.width, self.tab_bar_h)
 
-    def _get_run_button_rect(self) -> pygame.Rect:
+    def _getRunButtonRect(self) -> pygame.Rect:
         btn_w = 26
         btn_h = 24
         bx = self.x + self.width - btn_w - 32 - 6
         by = self.y + (self.tab_bar_h - btn_h) // 2
         return pygame.Rect(bx, by, btn_w, btn_h)
 
-    def _get_info_button_rect(self) -> pygame.Rect:
+    def _getInfoButtonRect(self) -> pygame.Rect:
         btn_w = 26
         btn_h = 24
         bx = self.x + self.width - btn_w - 6
         by = self.y + (self.tab_bar_h - btn_h) // 2
         return pygame.Rect(bx, by, btn_w, btn_h)
 
-    def _get_resize_grip_rect(self) -> pygame.Rect:
+    def _getResizeGripRect(self) -> pygame.Rect:
         return pygame.Rect(
             self.x + self.width - self.grip_size,
             self.y + self.height - self.grip_size,
@@ -739,12 +895,12 @@ class Renderer(Widget):
             self.grip_size,
         )
 
-    def _get_add_tab_rect(self, current_tabs_width: int) -> pygame.Rect:
+    def _getAddTabRect(self, current_tabs_width: int) -> pygame.Rect:
         ax = self.x + 6 + current_tabs_width
         ay = self.y + (self.tab_bar_h - 22) // 2
         return pygame.Rect(ax, ay, 22, 22)
 
-    def _get_tab_rects(self) -> list[tuple[pygame.Rect, pygame.Rect]]:
+    def _getTabRects(self) -> list[tuple[pygame.Rect, pygame.Rect]]:
         rects = []
         cur_x = self.x + 6
         tab_y = self.y + 3
@@ -758,24 +914,24 @@ class Renderer(Widget):
             cur_x += tab_w + 3
         return rects
 
-    def _get_console_rect(self) -> pygame.Rect:
+    def _getConsoleRect(self) -> pygame.Rect:
         top = self.y + self.height - self.status_bar_h - self.console_h
         return pygame.Rect(self.x, top, self.width, self.console_h)
 
-    def _get_console_close_rect(self) -> pygame.Rect:
+    def _getConsoleCloseRect(self) -> pygame.Rect:
         top = self.y + self.height - self.status_bar_h - self.console_h
         return pygame.Rect(self.x + self.width - 20, top + 3, 14, 14)
 
-    def _get_console_clear_rect(self) -> pygame.Rect:
+    def _getConsoleClearRect(self) -> pygame.Rect:
         top = self.y + self.height - self.status_bar_h - self.console_h
         return pygame.Rect(self.x + self.width - 42, top + 3, 16, 14)
 
-    def _update_cursor(self, mouseX: int, mouseY: int):
+    def _updateCursor(self, mouseX: int, mouseY: int):
         try:
             if not self.visible:
                 return
 
-            if self.is_resizing or self._get_resize_grip_rect().collidepoint(mouseX, mouseY):
+            if self.is_resizing or self._getResizeGripRect().collidepoint(mouseX, mouseY):
                 pygame.mouse.set_cursor(pygame.SYSTEM_CURSOR_SIZENWSE)
                 return
 
@@ -787,23 +943,23 @@ class Renderer(Widget):
                 return
 
             if (
-                self._get_run_button_rect().collidepoint(mouseX, mouseY)
-                or self._get_info_button_rect().collidepoint(mouseX, mouseY)
+                self._getRunButtonRect().collidepoint(mouseX, mouseY)
+                or self._getInfoButtonRect().collidepoint(mouseX, mouseY)
             ):
                 pygame.mouse.set_cursor(pygame.SYSTEM_CURSOR_HAND)
                 return
 
             if self.show_console:
                 if (
-                    self._get_console_close_rect().collidepoint(mouseX, mouseY)
-                    or self._get_console_clear_rect().collidepoint(mouseX, mouseY)
+                    self._getConsoleCloseRect().collidepoint(mouseX, mouseY)
+                    or self._getConsoleClearRect().collidepoint(mouseX, mouseY)
                 ):
                     pygame.mouse.set_cursor(pygame.SYSTEM_CURSOR_HAND)
                     return
 
-            tab_rects = self._get_tab_rects()
+            tab_rects = self._getTabRects()
             tot_tab_w = sum(tr[0].width + 3 for tr in tab_rects)
-            if self._get_add_tab_rect(tot_tab_w).collidepoint(mouseX, mouseY):
+            if self._getAddTabRect(tot_tab_w).collidepoint(mouseX, mouseY):
                 pygame.mouse.set_cursor(pygame.SYSTEM_CURSOR_HAND)
                 return
 
@@ -829,16 +985,16 @@ class Renderer(Widget):
         if not self.visible:
             return
 
-        self._init_fonts()
+        self._initFonts()
         dt = 0.016
 
-        self._update_cursor(mouseX, mouseY)
+        self._updateCursor(mouseX, mouseY)
 
         if self.is_dragging:
             pressed = pygame.mouse.get_pressed()
             if not pressed[0]:
                 self.is_dragging = False
-                self._notify_layout_change()
+                self._notifyLayoutChange()
             else:
                 cur_mx, cur_my = pygame.mouse.get_pos()
                 self.x = cur_mx - self.drag_offset_x
@@ -848,7 +1004,7 @@ class Renderer(Widget):
             pressed = pygame.mouse.get_pressed()
             if not pressed[0]:
                 self.is_resizing = False
-                self._notify_layout_change()
+                self._notifyLayoutChange()
             else:
                 cur_mx, cur_my = pygame.mouse.get_pos()
                 min_h = 240 if self.show_console else 190
@@ -861,7 +1017,7 @@ class Renderer(Widget):
                 self.repeat_time += dt
                 if self.repeat_time >= 0.03:
                     self.repeat_time = 0.0
-                    self._process_key(self.held_key, self.held_char)
+                    self._processKey(self.held_key, self.held_char)
 
         self.cursor_blink_time += dt
         if self.cursor_blink_time >= 0.5:
@@ -878,7 +1034,7 @@ class Renderer(Widget):
             if self.anim_exec_alpha < 0.005:
                 self.anim_exec_alpha = 0.0
 
-        tab = self.get_current_tab()
+        tab = self.getCurrentTab()
         con_h = self.console_h if self.show_console else 0
         editor_top = self.y + self.tab_bar_h
         editor_h = self.height - self.tab_bar_h - self.status_bar_h - con_h
@@ -891,7 +1047,7 @@ class Renderer(Widget):
             if not pressed[0]:
                 self.is_selecting_text = False
                 if tab.selection_start == (tab.cursor_row, tab.cursor_col):
-                    tab.clear_selection()
+                    tab.clearSelection()
             else:
                 cur_mx, cur_my = pygame.mouse.get_pos()
                 drag_row = tab.scroll_row + (cur_my - editor_top) // self.line_h
@@ -902,7 +1058,7 @@ class Renderer(Widget):
         visible_rows = max(1, editor_h // self.line_h)
         visible_cols = max(1, code_w // self.char_w)
         if tab:
-            tab.ensure_cursor_visible(visible_rows, visible_cols)
+            tab.ensureCursorVisible(visible_rows, visible_cols)
 
         pygame.draw.rect(screen, (8, 10, 14), (self.x + 3, self.y + 3, self.width, self.height), border_radius=10)
         pygame.draw.rect(screen, self.COLOR_BG, (self.x, self.y, self.width, self.height), border_radius=8)
@@ -910,7 +1066,7 @@ class Renderer(Widget):
         pygame.draw.rect(screen, self.COLOR_BORDER, (self.x, self.y, self.width, self.height), width=1, border_radius=8)
         pygame.draw.line(screen, (28, 32, 44), (self.x, editor_top), (self.x + self.width, editor_top))
 
-        tab_rects = self._get_tab_rects()
+        tab_rects = self._getTabRects()
         tot_tab_w = sum(tr[0].width + 3 for tr in tab_rects)
 
         for idx, ((tab_rect, close_rect), t) in enumerate(zip(tab_rects, self.tabs)):
@@ -931,7 +1087,7 @@ class Renderer(Widget):
             pygame.draw.line(screen, c_col, (ccx - 3, ccy - 3), (ccx + 3, ccy + 3), 2)
             pygame.draw.line(screen, c_col, (ccx + 3, ccy - 3), (ccx - 3, ccy + 3), 2)
 
-        add_rect = self._get_add_tab_rect(tot_tab_w)
+        add_rect = self._getAddTabRect(tot_tab_w)
         hover_add = add_rect.collidepoint(mouseX, mouseY)
         add_bg = (45, 52, 68) if hover_add else (28, 33, 44)
         pygame.draw.rect(screen, add_bg, add_rect, border_radius=4)
@@ -941,7 +1097,7 @@ class Renderer(Widget):
         pygame.draw.line(screen, plus_col, (acx - 4, acy), (acx + 4, acy), 2)
         pygame.draw.line(screen, plus_col, (acx, acy - 4), (acx, acy + 4), 2)
 
-        run_rect = self._get_run_button_rect()
+        run_rect = self._getRunButtonRect()
         hover_run = run_rect.collidepoint(mouseX, mouseY)
         if self.is_executing:
             run_bg = (215, 145, 20)
@@ -959,7 +1115,7 @@ class Renderer(Widget):
             tri = [(rcx - 4, rcy - 5), (rcx - 4, rcy + 5), (rcx + 5, rcy)]
             pygame.draw.polygon(screen, (255, 255, 255), tri)
 
-        info_rect = self._get_info_button_rect()
+        info_rect = self._getInfoButtonRect()
         hover_info = info_rect.collidepoint(mouseX, mouseY)
         info_bg = (45, 115, 195) if hover_info else (32, 90, 160)
         info_border = (65, 145, 235) if hover_info else (45, 110, 190)
@@ -980,7 +1136,7 @@ class Renderer(Widget):
         if tab:
             start_row = tab.scroll_row
             end_row = min(len(tab.lines), start_row + visible_rows + 1)
-            sel_range = tab.get_selection_range()
+            sel_range = tab.getSelectionRange()
 
             is_exec_tab = getattr(self, "executing_tab_index", None) in (None, self.active_tab_index)
             if is_exec_tab and self.anim_exec_alpha > 0.01:
@@ -1045,7 +1201,7 @@ class Renderer(Widget):
                 screen.blit(num_surf, (num_x, ly + 2))
 
                 line_text = tab.lines[r_idx]
-                tokens = self.highlight_line(line_text)
+                tokens = self.highlightLine(line_text)
                 cur_col = 0
                 for tok_text, tok_col in tokens:
                     col_end = cur_col + len(tok_text)
@@ -1066,7 +1222,7 @@ class Renderer(Widget):
         screen.set_clip(old_clip)
 
         if self.show_console:
-            self._render_console(screen, mouseX, mouseY)
+            self._renderConsole(screen, mouseX, mouseY)
 
         status_y = self.y + self.height - self.status_bar_h
         pygame.draw.rect(
@@ -1088,7 +1244,7 @@ class Renderer(Widget):
             pos_surf = self.ui_font.render(pos_info, True, (130, 140, 160))
             screen.blit(pos_surf, (self.x + self.width - pos_surf.get_width() - 26, status_y + 4))
 
-        grip_rect = self._get_resize_grip_rect()
+        grip_rect = self._getResizeGripRect()
         hover_grip = grip_rect.collidepoint(mouseX, mouseY) or self.is_resizing
         g_col = self.COLOR_ACCENT if hover_grip else (80, 92, 115)
         gx = self.x + self.width - 4
@@ -1096,8 +1252,8 @@ class Renderer(Widget):
         for off in (12, 8, 4):
             pygame.draw.line(screen, g_col, (gx - off, gy), (gx, gy - off), 1)
 
-    def _render_console(self, screen: pygame.Surface, mouseX: int, mouseY: int):
-        con_rect = self._get_console_rect()
+    def _renderConsole(self, screen: pygame.Surface, mouseX: int, mouseY: int):
+        con_rect = self._getConsoleRect()
         pygame.draw.rect(screen, self.COLOR_CONSOLE_BG, con_rect)
         pygame.draw.line(screen, (38, 44, 58), (con_rect.x, con_rect.y), (con_rect.right, con_rect.y))
 
@@ -1108,13 +1264,13 @@ class Renderer(Widget):
         lbl = self.ui_font.render("КОНСОЛЬ ВЫВОДА", True, (120, 135, 160))
         screen.blit(lbl, (con_rect.x + 8, con_rect.y + 2))
 
-        clr_rect = self._get_console_clear_rect()
+        clr_rect = self._getConsoleClearRect()
         h_clr = clr_rect.collidepoint(mouseX, mouseY)
         clr_col = (200, 210, 230) if h_clr else (120, 130, 150)
         clr_surf = self.ui_font.render("⌫", True, clr_col)
         screen.blit(clr_surf, (clr_rect.x, clr_rect.y - 1))
 
-        close_rect = self._get_console_close_rect()
+        close_rect = self._getConsoleCloseRect()
         h_close = close_rect.collidepoint(mouseX, mouseY)
         c_col = (245, 80, 80) if h_close else (120, 130, 150)
         c_surf = self.ui_font.render("×", True, c_col)
@@ -1151,8 +1307,8 @@ class Renderer(Widget):
         mods = pygame.key.get_mods()
         ctrl = bool(mods & pygame.KMOD_CTRL)
 
-        if button == 1 and (ctrl or self._get_resize_grip_rect().collidepoint(mouseX, mouseY)):
-            if self._get_resize_grip_rect().collidepoint(mouseX, mouseY):
+        if button == 1 and (ctrl or self._getResizeGripRect().collidepoint(mouseX, mouseY)):
+            if self._getResizeGripRect().collidepoint(mouseX, mouseY):
                 self.is_resizing = True
                 self.resize_start_w = self.width
                 self.resize_start_h = self.height
@@ -1166,35 +1322,36 @@ class Renderer(Widget):
                 return True
 
         if self.show_console:
-            if self._get_console_close_rect().collidepoint(mouseX, mouseY):
+            if self._getConsoleCloseRect().collidepoint(mouseX, mouseY):
                 self.show_console = False
                 return True
-            if self._get_console_clear_rect().collidepoint(mouseX, mouseY):
+            if self._getConsoleClearRect().collidepoint(mouseX, mouseY):
                 self.console_logs.clear()
                 self.console_scroll = 0
                 return True
 
-        if self._get_run_button_rect().collidepoint(mouseX, mouseY):
-            self.run_code()
+        if self._getRunButtonRect().collidepoint(mouseX, mouseY):
+            self.console_logs.clear()
+            self.runCode()
             return True
 
-        if self._get_info_button_rect().collidepoint(mouseX, mouseY):
-            self.toggle_info()
+        if self._getInfoButtonRect().collidepoint(mouseX, mouseY):
+            self.toggleInfo()
             return True
 
-        tab_rects = self._get_tab_rects()
+        tab_rects = self._getTabRects()
         tot_tab_w = sum(tr[0].width + 3 for tr in tab_rects)
 
-        if self._get_add_tab_rect(tot_tab_w).collidepoint(mouseX, mouseY):
-            self.add_tab()
+        if self._getAddTabRect(tot_tab_w).collidepoint(mouseX, mouseY):
+            self.addTab()
             return True
 
         for idx, (tab_rect, close_rect) in enumerate(tab_rects):
             if close_rect.collidepoint(mouseX, mouseY):
-                self.close_tab(idx)
+                self.closeTab(idx)
                 return True
             if tab_rect.collidepoint(mouseX, mouseY):
-                self.select_tab(idx)
+                self.selectTab(idx)
                 return True
 
         if button == 1 and mouseY < self.y + self.tab_bar_h:
@@ -1209,7 +1366,7 @@ class Renderer(Widget):
         code_x = self.x + self.gutter_w
 
         if editor_top <= mouseY < editor_top + editor_h and self.x <= mouseX < self.x + self.width:
-            tab = self.get_current_tab()
+            tab = self.getCurrentTab()
             if tab:
                 click_row = tab.scroll_row + (mouseY - editor_top) // self.line_h
                 click_col = tab.scroll_col + max(0, (mouseX - code_x - 8) // self.char_w)
@@ -1237,23 +1394,23 @@ class Renderer(Widget):
             self.is_dragging = False
             self.is_resizing = False
             self.is_selecting_text = False
-            tab = self.get_current_tab()
+            tab = self.getCurrentTab()
             if tab and tab.selection_start == (tab.cursor_row, tab.cursor_col):
-                tab.clear_selection()
+                tab.clearSelection()
             if was_drag_or_resize:
-                self._notify_layout_change()
-        self._update_cursor(mouseX, mouseY)
+                self._notifyLayoutChange()
+        self._updateCursor(mouseX, mouseY)
         return super().mouseReleased(mouseX, mouseY, button)
 
     def mouseScrolled(self, mouseX: int, mouseY: int, scrollY: int) -> bool:
         if not self.visible or not self.enabled or not self.isHovered(mouseX, mouseY):
             return False
 
-        if self.show_console and self._get_console_rect().collidepoint(mouseX, mouseY):
+        if self.show_console and self._getConsoleRect().collidepoint(mouseX, mouseY):
             self.console_scroll = max(0, min(len(self.console_logs) - 1, self.console_scroll - scrollY * 2))
             return True
 
-        tab = self.get_current_tab()
+        tab = self.getCurrentTab()
         if tab:
             tab.scroll_row = max(0, min(len(tab.lines) - 1, tab.scroll_row - scrollY * 3))
             return True
@@ -1265,8 +1422,8 @@ class Renderer(Widget):
             self.held_char = ""
         return super().keyReleased(keyCode)
 
-    def _process_key(self, keyCode: int, char: str = "") -> bool:
-        tab = self.get_current_tab()
+    def _processKey(self, keyCode: int, char: str = "") -> bool:
+        tab = self.getCurrentTab()
         if not tab:
             return False
 
@@ -1279,74 +1436,74 @@ class Renderer(Widget):
 
         if ctrl:
             if keyCode in (pygame.K_RETURN, pygame.K_KP_ENTER):
-                self.run_code()
+                self.runCode()
                 return True
             if keyCode == pygame.K_t:
-                self.add_tab()
+                self.addTab()
                 return True
             if keyCode == pygame.K_w:
-                self.close_tab(self.active_tab_index)
+                self.closeTab(self.active_tab_index)
                 return True
             if keyCode == pygame.K_i:
-                self.toggle_info()
+                self.toggleInfo()
                 return True
             if keyCode == pygame.K_a:
-                tab.select_all()
+                tab.selectAll()
                 return True
             if keyCode == pygame.K_c:
-                if tab.has_selection():
-                    self._set_clipboard(tab.get_selected_text())
+                if tab.hasSelection():
+                    self._setClipboard(tab.getSelectedText())
                 return True
             if keyCode == pygame.K_x:
-                if tab.has_selection():
-                    self._set_clipboard(tab.get_selected_text())
-                    tab.delete_selection()
+                if tab.hasSelection():
+                    self._setClipboard(tab.getSelectedText())
+                    tab.deleteSelection()
                 return True
             if keyCode == pygame.K_v:
-                clip = self._get_clipboard()
+                clip = self._getClipboard()
                 if clip:
-                    tab.insert_char(clip)
+                    tab.insertChar(clip)
                 return True
             if keyCode == pygame.K_LEFT:
                 if shift and tab.selection_start is None:
                     tab.selection_start = (tab.cursor_row, tab.cursor_col)
                 elif not shift:
-                    tab.clear_selection()
-                tab.move_word_left()
+                    tab.clearSelection()
+                tab.moveWordLeft()
                 return True
             if keyCode == pygame.K_RIGHT:
                 if shift and tab.selection_start is None:
                     tab.selection_start = (tab.cursor_row, tab.cursor_col)
                 elif not shift:
-                    tab.clear_selection()
-                tab.move_word_right()
+                    tab.clearSelection()
+                tab.moveWordRight()
                 return True
             if keyCode == pygame.K_HOME:
                 if shift and tab.selection_start is None:
                     tab.selection_start = (tab.cursor_row, tab.cursor_col)
                 elif not shift:
-                    tab.clear_selection()
-                tab.move_doc_start()
+                    tab.clearSelection()
+                tab.moveDocStart()
                 return True
             if keyCode == pygame.K_END:
                 if shift and tab.selection_start is None:
                     tab.selection_start = (tab.cursor_row, tab.cursor_col)
                 elif not shift:
-                    tab.clear_selection()
-                tab.move_doc_end()
+                    tab.clearSelection()
+                tab.moveDocEnd()
                 return True
             if keyCode == pygame.K_BACKSPACE:
-                tab.delete_word_backspace()
+                tab.deleteWordBackspace()
                 return True
             if keyCode == pygame.K_DELETE:
-                tab.delete_word_delete()
+                tab.deleteWordDelete()
                 return True
             if keyCode == pygame.K_UP:
-                tab.move_up()
+                tab.moveUp()
                 tab.scroll_row = max(0, tab.scroll_row - 1)
                 return True
             if keyCode == pygame.K_DOWN:
-                tab.move_down()
+                tab.moveDown()
                 tab.scroll_row = min(len(tab.lines) - 1, tab.scroll_row + 1)
                 return True
 
@@ -1354,7 +1511,7 @@ class Renderer(Widget):
             if tab.selection_start is None:
                 tab.selection_start = (tab.cursor_row, tab.cursor_col)
         elif not shift and keyCode in (pygame.K_LEFT, pygame.K_RIGHT, pygame.K_UP, pygame.K_DOWN, pygame.K_HOME, pygame.K_END):
-            tab.clear_selection()
+            tab.clearSelection()
 
         if keyCode in (pygame.K_RETURN, pygame.K_KP_ENTER):
             tab.newline()
@@ -1369,22 +1526,22 @@ class Renderer(Widget):
             tab.tab()
             return True
         if keyCode == pygame.K_UP:
-            tab.move_up()
+            tab.moveUp()
             return True
         if keyCode == pygame.K_DOWN:
-            tab.move_down()
+            tab.moveDown()
             return True
         if keyCode == pygame.K_LEFT:
-            tab.move_left()
+            tab.moveLeft()
             return True
         if keyCode == pygame.K_RIGHT:
-            tab.move_right()
+            tab.moveRight()
             return True
         if keyCode == pygame.K_HOME:
-            tab.move_home()
+            tab.moveHome()
             return True
         if keyCode == pygame.K_END:
-            tab.move_end()
+            tab.moveEnd()
             return True
         if keyCode == pygame.K_PAGEUP:
             tab.cursor_row = max(0, tab.cursor_row - 15)
@@ -1396,7 +1553,7 @@ class Renderer(Widget):
             return True
 
         if char and char.isprintable():
-            tab.insert_char(char)
+            tab.insertChar(char)
             return True
 
         from game.Game import Game
@@ -1404,23 +1561,23 @@ class Renderer(Widget):
         if g and hasattr(g, "keyboard") and g.keyboard:
             last_u = getattr(g.keyboard, "last_unicode", "")
             if last_u and last_u.isprintable():
-                tab.insert_char(last_u)
+                tab.insertChar(last_u)
                 g.keyboard.last_unicode = ""
                 return True
 
         if not ctrl:
             if pygame.K_a <= keyCode <= pygame.K_z:
                 letter = chr(keyCode)
-                tab.insert_char(letter.upper() if shift else letter)
+                tab.insertChar(letter.upper() if shift else letter)
                 return True
             if shift and keyCode in self.SHIFT_DIGITS:
-                tab.insert_char(self.SHIFT_DIGITS[keyCode])
+                tab.insertChar(self.SHIFT_DIGITS[keyCode])
                 return True
             if pygame.K_0 <= keyCode <= pygame.K_9:
-                tab.insert_char(chr(keyCode))
+                tab.insertChar(chr(keyCode))
                 return True
             if keyCode in self.KEY_MAP:
-                tab.insert_char(self.KEY_MAP[keyCode])
+                tab.insertChar(self.KEY_MAP[keyCode])
                 return True
 
         return False
@@ -1434,4 +1591,38 @@ class Renderer(Widget):
         self.hold_time = 0.0
         self.repeat_time = 0.0
 
-        return self._process_key(keyCode, char)
+        return self._processKey(keyCode, char)
+
+
+    # Aliases
+    _init_fonts = _initFonts
+    _set_clipboard = _setClipboard
+    _get_clipboard = _getClipboard
+    add_tab = addTab
+    close_tab = closeTab
+    select_tab = selectTab
+    get_current_tab = getCurrentTab
+    get_current_code = getCurrentCode
+    set_current_code = setCurrentCode
+    get_tab_count = getTabCount
+    _notify_layout_change = _notifyLayoutChange
+    to_dict = toDict
+    load_dict = loadDict
+    set_status = setStatus
+    show_level_info = showLevelInfo
+    toggle_info = toggleInfo
+    run_code = runCode
+    _handle_line_step = _handleLineStep
+    highlight_line = highlightLine
+    _get_title_bar_rect = _getTitleBarRect
+    _get_run_button_rect = _getRunButtonRect
+    _get_info_button_rect = _getInfoButtonRect
+    _get_resize_grip_rect = _getResizeGripRect
+    _get_add_tab_rect = _getAddTabRect
+    _get_tab_rects = _getTabRects
+    _get_console_rect = _getConsoleRect
+    _get_console_close_rect = _getConsoleCloseRect
+    _get_console_clear_rect = _getConsoleClearRect
+    _update_cursor = _updateCursor
+    _render_console = _renderConsole
+    _process_key = _processKey

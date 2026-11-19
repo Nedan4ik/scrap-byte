@@ -141,6 +141,8 @@ class Level:
 
     def update(self, dt: float = 0.016, screen_w: int = 800, screen_h: int = 600, zoom: float = 1.0):
         self.drone.update(dt)
+        for t in self.trashItems:
+            t.update(dt)
         if not self.camera_initialized:
             self.center_camera(self.drone.x, self.drone.y, screen_w, screen_h, zoom=zoom)
             self.camera_initialized = True

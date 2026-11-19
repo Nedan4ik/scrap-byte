@@ -49,7 +49,8 @@ class GameScreen(Screen):
         )
 
         if saved and "editor" in saved:
-            self.code_editor.load_dict(saved["editor"])
+            editor_data = {k: v for k, v in saved["editor"].items() if k not in ("tabs", "active_tab")}
+            self.code_editor.load_dict(editor_data)
 
         self.zoom = 1.0
         self.target_zoom = 1.0
@@ -105,7 +106,14 @@ class GameScreen(Screen):
         super().mouseReleased(mouseX, mouseY, button)
 
     def keyPressed(self, keyCode: int):
+        mods = pygame.key.get_mods()
+        ctrl_pressed = bool(mods & pygame.KMOD_CTRL)
+
         if self.code_editor.visible and self.code_editor.is_focused:
+            if ctrl_pressed and keyCode == pygame.K_r:
+                self.restart_level()
+                return
+
             if keyCode == pygame.K_ESCAPE:
                 if self.code_editor.info_open:
                     self.code_editor.info_open = False
@@ -113,6 +121,10 @@ class GameScreen(Screen):
                     self.code_editor.is_focused = False
                 return
             super().keyPressed(keyCode)
+            return
+
+        if keyCode == pygame.K_r:
+            self.restart_level()
             return
 
         if keyCode == pygame.K_ESCAPE:
@@ -139,7 +151,8 @@ class GameScreen(Screen):
         self.interpretator.set_level_restrictions(self.level_index)
         self.code_editor.level = self.level
         if saved and "editor" in saved:
-            self.code_editor.load_dict(saved["editor"])
+            editor_data = {k: v for k, v in saved["editor"].items() if k not in ("tabs", "active_tab")}
+            self.code_editor.load_dict(editor_data)
         for tab in self.code_editor.tabs:
             if tab.title == "Информация о уровне":
                 tab.set_text(self.level.get_level_info())
@@ -151,6 +164,9 @@ class GameScreen(Screen):
         self.save_progress()
 
     def restart_level(self):
+        self._pending_restart_timer = None
+        if self.interpretator:
+            self.interpretator.stop()
         from sound.SoundManager import SoundManager
         SoundManager.get_instance().stop_drone_move()
         self.load_level(self.level_index)
@@ -159,6 +175,10 @@ class GameScreen(Screen):
             new_screen = GameScreen(level_index=self.level_index, restart=True)
             new_screen.code_editor.show_console = True
             new_screen.code_editor.console_logs = list(self.code_editor.console_logs)
+            if hasattr(self, "code_editor") and getattr(self.code_editor, "tabs", None):
+                from coding.Renderer import CodeTab
+                new_screen.code_editor.tabs = [CodeTab(title=t.title, content=t.getText()) for t in self.code_editor.tabs]
+                new_screen.code_editor.active_tab_index = min(self.code_editor.active_tab_index, len(new_screen.code_editor.tabs) - 1)
             new_screen.code_editor.set_status("Уровень перезапущен. Попробуй еще раз!", (180, 190, 210))
             self.game.openScreen(new_screen, use_transition=True)
 
@@ -185,7 +205,13 @@ class GameScreen(Screen):
             all_collected = bool(self.level.trashItems and all(t.collected for t in self.level.trashItems))
             data["completed"] = all_collected or getattr(self, "_level_completed", False)
             if hasattr(self, "code_editor") and self.code_editor:
-                data["editor"] = self.code_editor.to_dict()
+                data["editor"] = {
+                    "x": int(self.code_editor.x),
+                    "y": int(self.code_editor.y),
+                    "w": int(self.code_editor.width),
+                    "h": int(self.code_editor.height),
+                    "custom_layout": getattr(self.code_editor, "custom_layout", False),
+                }
             self.game.saveManager.save(data)
             self.game.saveManager.save_level(self.level_index, data)
 

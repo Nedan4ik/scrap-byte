@@ -177,8 +177,38 @@ class Drone:
         hover_y = math.sin(self.time * 3.2) * 1.6 * hover_damping
         hover_x = math.cos(self.time * 1.8) * 0.8 * hover_damping
 
+        # Screen coordinates for the drone (hovering in air)
         draw_x = int((self.x + hover_x - offset_x) * zoom)
         draw_y = int((self.y + hover_y - offset_y) * zoom)
 
+        sw, sh = screen.get_size()
+        margin = int(60 * zoom)
+        if draw_x < -margin or draw_x > sw + margin or draw_y < -margin or draw_y > sh + margin:
+            return
+
+        # Ground shadow position on the platform tile beneath the hovering drone
+        ground_x = int((self.x - offset_x) * zoom)
+        ground_y = int((self.y + 14 - offset_y) * zoom)
+
+        # Scale and alpha breathe subtly with hover height (higher drone = slightly softer shadow)
+        height_factor = max(0.85, min(1.15, 1.0 - hover_y * 0.05))
+        shadow_w = max(8, int(42 * zoom * height_factor))
+        shadow_h = max(4, int(20 * zoom * height_factor))
+        shadow_alpha = max(60, min(140, int(115 - hover_y * 12)))
+
+        shadow_surf = pygame.Surface((shadow_w, shadow_h), pygame.SRCALPHA)
+        # Soft outer diffuse shadow
+        pygame.draw.ellipse(shadow_surf, (4, 6, 12, shadow_alpha // 2), (0, 0, shadow_w, shadow_h))
+        # Dense inner core shadow under the chassis
+        core_w = max(3, int(shadow_w * 0.65))
+        core_h = max(2, int(shadow_h * 0.65))
+        pygame.draw.ellipse(
+            shadow_surf,
+            (2, 3, 6, shadow_alpha),
+            ((shadow_w - core_w) // 2, (shadow_h - core_h) // 2, core_w, core_h),
+        )
+        screen.blit(shadow_surf, (ground_x - shadow_w // 2, ground_y - shadow_h // 2))
+
+        # Render the drone sprite itself above the ground shadow
         drone_scale = 1.05 * zoom
         self.sprite.render(screen, draw_x, draw_y, angle=self.angle, scale=drone_scale)
