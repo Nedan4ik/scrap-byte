@@ -28,8 +28,8 @@ class Interpretator:
 
     LEVEL_BANS = {
         1: ["if", "for", "while", "def", "class", "import", "try", "except", "comprehension"],
-        2: ["for", "while", "def", "class", "import", "try", "except", "comprehension"],
-        3: ["while", "def", "class", "import", "try", "except", "comprehension"],
+        2: ["def", "class", "import", "try", "except", "comprehension"],
+        3: ["def", "class", "import", "try", "except", "comprehension"],
         4: ["def", "class", "import", "try", "except"],
     }
 
@@ -44,6 +44,11 @@ class Interpretator:
     LEVEL_ALLOWED_COMMANDS = {
         1: {"forward", "turn_left", "turn_right", "left", "right", "pickup"},
         2: {
+            "forward", "turn_left", "turn_right", "left", "right", "pickup",
+            "can_forward", "front_is_obstacle", "front_is_air", "can_pickup", "has_trash",
+            "is_obstacle", "is_air", "front", "pos", "get_pos", "heading", "heading_name",
+        },
+        3: {
             "forward", "turn_left", "turn_right", "left", "right", "pickup",
             "can_forward", "front_is_obstacle", "front_is_air", "can_pickup", "has_trash",
             "is_obstacle", "is_air", "front", "pos", "get_pos", "heading", "heading_name",
@@ -131,7 +136,8 @@ class Interpretator:
                     return False, f"Использование функции '{name}()' запрещено на этом уровне (строка {line})"
                 if self.allowed_drone_commands is not None and name in self.ALL_DRONE_COMMANDS:
                     if name not in self.allowed_drone_commands:
-                        return False, f"Команда '{name}()' недоступна на {self.level_index} уровне (строка {line}). Разрешены только: forward(), turn_left(), turn_right(), pickup()"
+                        allowed_str = ", ".join(f"{c}()" for c in sorted(self.allowed_drone_commands))
+                        return False, f"Команда '{name}()' недоступна на {self.level_index} уровне (строка {line}). Разрешены: {allowed_str}"
 
         return True, None
 
@@ -196,15 +202,17 @@ class Interpretator:
             elapsed += 0.016
 
     def _cmd_forward(self) -> bool:
-        if not self.drone or not self.level:
+        if not self.drone or not self.level or self._stop_requested:
             return False
         res = self.drone.move_forward(self.level)
         if res and self.action_delay > 0:
             self._sleep(self.action_delay)
+        elif not res and self.action_delay > 0:
+            self._sleep(0.15)
         return res
 
     def _cmd_left(self) -> bool:
-        if not self.drone:
+        if not self.drone or self._stop_requested:
             return False
         self.drone.turn_left()
         if self.action_delay > 0:
@@ -212,7 +220,7 @@ class Interpretator:
         return True
 
     def _cmd_right(self) -> bool:
-        if not self.drone:
+        if not self.drone or self._stop_requested:
             return False
         self.drone.turn_right()
         if self.action_delay > 0:
@@ -220,7 +228,7 @@ class Interpretator:
         return True
 
     def _cmd_pickup(self) -> bool:
-        if not self.drone:
+        if not self.drone or self._stop_requested:
             return False
         self.drone.pickup()
         found = False
@@ -291,6 +299,8 @@ class Interpretator:
             "wait": self._sleep,
             "wait_idle": self._wait_idle,
             "log": self._log,
+            "range": range,
+            "len": len,
         }
         self.env.update(kwargs)
 
@@ -303,6 +313,8 @@ class Interpretator:
         res_val, err_msg, ok = None, None, True
 
         def _tracer(frame, event, arg):
+            if self._stop_requested:
+                raise InterruptedError("Выполнение остановлено")
             if event == "line" and frame.f_code.co_filename == "<user_code>":
                 line_no = frame.f_lineno - 1
                 self.current_line = line_no
@@ -322,6 +334,9 @@ class Interpretator:
                     res_val = eval(compile(ast.parse(code, mode="eval"), "<user_code>", "eval"), self.env, self.env)
                 except SyntaxError:
                     exec(compile(ast.parse(code, mode="exec"), "<user_code>", "exec"), self.env, self.env)
+            except InterruptedError:
+                ok = False
+                err_msg = "Программа остановлена."
             except Exception as e:
                 ok = False
                 err_msg = f"{type(e).__name__}: {e}"

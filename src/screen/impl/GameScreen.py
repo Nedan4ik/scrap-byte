@@ -1,4 +1,5 @@
 from __future__ import annotations
+import time
 import pygame
 from screen.Screen import Screen
 from levels.Level import Level
@@ -67,6 +68,12 @@ class GameScreen(Screen):
         self.target_camera_x = 0.0
         self.target_camera_y = 0.0
 
+        self.time: float = 0.0
+        self._last_time_stamp: float | None = None
+        self._hud_font: pygame.font.Font | None = None
+        self._hud_small_font: pygame.font.Font | None = None
+        self._hud_title_font: pygame.font.Font | None = None
+
     def mouseScrolled(self, mouseX: int, mouseY: int, scrollY: int):
         if self.code_editor.visible and self.code_editor.isHovered(mouseX, mouseY):
             super().mouseScrolled(mouseX, mouseY, scrollY)
@@ -80,6 +87,9 @@ class GameScreen(Screen):
     def mouseClicked(self, mouseX: int, mouseY: int, button: int):
         if self.code_editor.visible and self.code_editor.isHovered(mouseX, mouseY):
             super().mouseClicked(mouseX, mouseY, button)
+            return
+
+        if 16 <= mouseX <= 310 and 16 <= mouseY <= 110:
             return
 
         if self.code_editor.is_focused:
@@ -127,6 +137,15 @@ class GameScreen(Screen):
             self.restart_level()
             return
 
+        if keyCode == pygame.K_n:
+            from levels.Levels import Levels
+            nxt = self.level_index + 1 if self.level_index < Levels.COUNT else 1
+            if self.interpretator:
+                self.interpretator.stop()
+            self.save_progress()
+            self.load_level(nxt)
+            return
+
         if keyCode == pygame.K_ESCAPE:
             if self.interpretator:
                 self.interpretator.stop()
@@ -141,6 +160,9 @@ class GameScreen(Screen):
     def load_level(self, index: int):
         from levels.Levels import Levels
         self.level_index = max(1, min(Levels.COUNT, index))
+        self.time = 0.0
+        self._last_time_stamp = None
+        self._pending_restart_timer = None
         saved = None
         if self.game and hasattr(self.game, "saveManager") and self.game.saveManager:
             saved = self.game.saveManager.load_level(self.level_index)
@@ -165,6 +187,8 @@ class GameScreen(Screen):
 
     def restart_level(self):
         self._pending_restart_timer = None
+        self.time = 0.0
+        self._last_time_stamp = None
         if self.interpretator:
             self.interpretator.stop()
         from sound.SoundManager import SoundManager
@@ -216,7 +240,12 @@ class GameScreen(Screen):
             self.game.saveManager.save_level(self.level_index, data)
 
     def render(self, screen: pygame.Surface, mouseX: int, mouseY: int):
-        dt = 0.016
+        now = time.time()
+        if self._last_time_stamp is None:
+            dt = 0.016
+        else:
+            dt = min(0.1, max(0.001, now - self._last_time_stamp))
+        self._last_time_stamp = now
         w, h = screen.get_size()
 
         if (w, h) != self.last_screen_size:
@@ -267,13 +296,23 @@ class GameScreen(Screen):
                 self.level.camera_y = self.target_camera_y
                 self.is_panning = False
 
+        if not self.level.camera_initialized:
+            arena_w = self.code_editor.x if (self.code_editor and self.code_editor.visible) else w
+            fit_zoom = max(self.min_zoom, min(0.85, min((arena_w - 70) / max(1, self.level.cols * self.level.tile_size), (h - 70) / max(1, self.level.rows * self.level.tile_size))))
+            self.zoom = fit_zoom
+            self.target_zoom = fit_zoom
+            self.level.camera_x = -(arena_w / 2.0) / self.zoom
+            self.level.camera_y = -(h / 2.0) / self.zoom
+            self.level.camera_initialized = True
+
         self.level.update(dt, screen_w=w, screen_h=h, zoom=self.zoom)
         self.level.render(screen, zoom=self.zoom)
 
         all_collected = bool(self.level.trashItems and all(t.collected for t in self.level.trashItems))
         if all_collected and not self._notified_completion:
             self._notified_completion = True
-            nxt = 2 if self.level_index == 1 else 1
+            from levels.Levels import Levels
+            nxt = self.level_index + 1 if self.level_index < Levels.COUNT else 1
             self.code_editor.set_status(f"Сектор {self.level_index} зачищен! Нажмите N для Сектора {nxt}", (78, 201, 176))
 
         if self._pending_restart_timer is not None:
@@ -282,4 +321,175 @@ class GameScreen(Screen):
                 self._pending_restart_timer = None
                 self.restart_level()
 
+        is_timed = (
+            self.level.max_time != 'inf'
+            and self.level.max_time is not None
+            and isinstance(self.level.max_time, (int, float))
+            and self.level.max_time > 0
+            and self.level.max_time != float('inf')
+        )
+
+        if is_timed and not self._level_completed and self._pending_restart_timer is None:
+            self.time += dt
+            if self.time >= self.level.max_time:
+                self.time = float(self.level.max_time)
+                if self.interpretator:
+                    self.interpretator.stop()
+                from sound.SoundManager import SoundManager
+                sm = SoundManager.get_instance()
+                if sm:
+                    sm.stop_drone_move()
+                    sm.play_obstacle_hit()
+                self.code_editor.show_console = True
+                self.code_editor.console_logs.append(("⏱ [Время вышло! Уровень перезапускается...]", (244, 75, 86)))
+                self.code_editor.set_status("Время вышло! Перезапуск...", (244, 75, 86))
+                self._pending_restart_timer = 1.2
+
+        if is_timed and not self._level_completed:
+            rem = max(0.0, float(self.level.max_time) - self.time)
+            if rem <= 45.0:
+                self._render_danger_overlay(screen, rem, float(self.level.max_time))
+
+        self._render_hud(screen, is_timed)
         super().render(screen, mouseX, mouseY)
+
+    def _render_danger_overlay(self, screen: pygame.Surface, rem: float, max_t: float):
+        import math
+        w, h = screen.get_size()
+        ed_x = self.code_editor.x if (self.code_editor and self.code_editor.visible) else w
+        arena_w = max(200, ed_x)
+
+        danger_ratio = max(0.0, min(1.0, (45.0 - rem) / 45.0))
+        pulse_freq = 4.0 + 5.0 * danger_ratio
+        pulse = (math.sin(self.time * pulse_freq) + 1.0) * 0.5
+
+        # 1. Soft red tint across the playable arena
+        overlay_alpha = int(14 * danger_ratio + 36 * danger_ratio * pulse)
+        if overlay_alpha > 0:
+            red_surf = pygame.Surface((arena_w, h), pygame.SRCALPHA)
+            red_surf.fill((220, 20, 30, overlay_alpha))
+            screen.blit(red_surf, (0, 0))
+
+        # 2. Glowing perimeter borders on arena edges
+        border_thickness = int(6 + 14 * danger_ratio)
+        border_alpha = int(40 * danger_ratio + 70 * danger_ratio * pulse)
+        if border_alpha > 0:
+            edge_surf = pygame.Surface((arena_w, h), pygame.SRCALPHA)
+            edge_col = (255, 30, 40, border_alpha)
+            pygame.draw.rect(edge_surf, edge_col, (0, 0, arena_w, border_thickness))
+            pygame.draw.rect(edge_surf, edge_col, (0, h - border_thickness, arena_w, border_thickness))
+            pygame.draw.rect(edge_surf, edge_col, (0, 0, border_thickness, h))
+            pygame.draw.rect(edge_surf, edge_col, (arena_w - border_thickness, 0, border_thickness, h))
+            screen.blit(edge_surf, (0, 0))
+
+        # 3. Flashing warning banner (placed safely below HUD at y=114)
+        if rem <= 30.0:
+            font = self._hud_title_font or pygame.font.SysFont("Consolas", 13, bold=True)
+            warn_color = (255, 75, 75) if pulse > 0.4 else (205, 35, 35)
+            warn_text = f"⚠ ТРЕВОГА: ВРЕМЯ НА ИСХОДЕ ({int(rem)}с) ⚠"
+            warn_surf = font.render(warn_text, True, warn_color)
+            warn_x = (arena_w - warn_surf.get_width()) // 2
+            warn_y = 114
+            pill_w = warn_surf.get_width() + 20
+            pill_h = warn_surf.get_height() + 8
+            pill_surf = pygame.Surface((pill_w, pill_h), pygame.SRCALPHA)
+            pill_surf.fill((22, 6, 8, int(190 + 65 * pulse)))
+            screen.blit(pill_surf, (warn_x - 10, warn_y - 4))
+            pygame.draw.rect(screen, (220, 35, 45), (warn_x - 10, warn_y - 4, pill_w, pill_h), width=1, border_radius=6)
+            screen.blit(warn_surf, (warn_x, warn_y))
+
+    def _render_hud(self, screen: pygame.Surface, is_timed: bool):
+        if self._hud_font is None:
+            self._hud_font = pygame.font.SysFont("Consolas", 20, bold=True)
+            self._hud_small_font = pygame.font.SysFont("Consolas", 11)
+            self._hud_title_font = pygame.font.SysFont("Consolas", 13, bold=True)
+            self._hud_hint_font = pygame.font.SysFont("Consolas", 10)
+
+        hud_x, hud_y = 18, 16
+        hud_w, hud_h = 290, 92
+
+        # Sleek glassmorphism card
+        hud_surf = pygame.Surface((hud_w, hud_h), pygame.SRCALPHA)
+        hud_surf.fill((14, 18, 26, 235))
+        screen.blit(hud_surf, (hud_x, hud_y))
+
+        # Thin tech border
+        border_col = (48, 58, 78)
+        pygame.draw.rect(screen, border_col, (hud_x, hud_y, hud_w, hud_h), width=1, border_radius=10)
+
+        # Header: Sector name and trash progress
+        from levels.Levels import Levels
+        sec_title = f"СЕКТОР {self.level_index} // {Levels.get_title(self.level_index).upper()}"
+        title_surf = self._hud_title_font.render(sec_title, True, (150, 175, 230))
+        screen.blit(title_surf, (hud_x + 12, hud_y + 9))
+
+        collected = sum(1 for t in self.level.trashItems if t.collected)
+        total = len(self.level.trashItems)
+        trash_col = (78, 220, 180) if (total > 0 and collected == total) else (180, 195, 215)
+        trash_surf = self._hud_small_font.render(f"ЛОМ: {collected}/{total}", True, trash_col)
+        screen.blit(trash_surf, (hud_x + hud_w - trash_surf.get_width() - 12, hud_y + 10))
+
+        if is_timed:
+            max_t = float(self.level.max_time)
+            rem = max(0.0, max_t - self.time)
+            mins = int(rem) // 60
+            secs = int(rem) % 60
+
+            if rem > 60.0:
+                timer_col = (78, 220, 180)
+            elif rem > 30.0:
+                timer_col = (255, 185, 50)
+            else:
+                is_flash = int(self.time * 5) % 2 == 0
+                timer_col = (255, 80, 90) if is_flash else (220, 45, 55)
+
+            if self._level_completed:
+                timer_text = "★ СЕКТОР ЗАЧИЩЕН"
+                timer_col = (78, 220, 180)
+                time_surf = self._hud_font.render(timer_text, True, timer_col)
+                screen.blit(time_surf, (hud_x + 12, hud_y + 32))
+            else:
+                if rem <= 10.0:
+                    tenths = int((rem - int(rem)) * 10)
+                    timer_text = f"⏱ {mins:02d}:{secs:02d}.{tenths}"
+                else:
+                    timer_text = f"⏱ {mins:02d}:{secs:02d}"
+
+                time_surf = self._hud_font.render(timer_text, True, timer_col)
+                screen.blit(time_surf, (hud_x + 12, hud_y + 30))
+
+                limit_str = f"/ {int(max_t)//60:02d}:{int(max_t)%60:02d}"
+                limit_surf = self._hud_small_font.render(limit_str, True, (120, 135, 155))
+                screen.blit(limit_surf, (hud_x + 12 + time_surf.get_width() + 6, hud_y + 36))
+
+            # Progress bar
+            bar_x = hud_x + 12
+            bar_y = hud_y + 60
+            bar_w = hud_w - 24
+            bar_h = 6
+            pygame.draw.rect(screen, (24, 30, 44), (bar_x, bar_y, bar_w, bar_h), border_radius=3)
+            fill_ratio = max(0.0, min(1.0, rem / max_t))
+            fill_w = int(bar_w * fill_ratio)
+            if fill_w > 0:
+                pygame.draw.rect(screen, timer_col, (bar_x, bar_y, fill_w, bar_h), border_radius=3)
+
+            # Shortcut hints
+            hint_surf = self._hud_hint_font.render("R - рестарт  |  Ctrl+Z - отмена  |  ▶ - запуск", True, (95, 110, 130))
+            screen.blit(hint_surf, (hud_x + 12, hud_y + 72))
+        else:
+            mins = int(self.time) // 60
+            secs = int(self.time) % 60
+            if self._level_completed:
+                timer_text = "★ СЕКТОР ЗАЧИЩЕН"
+                timer_col = (78, 220, 180)
+            else:
+                timer_text = f"⏱ {mins:02d}:{secs:02d}"
+                timer_col = (180, 195, 220)
+            time_surf = self._hud_font.render(timer_text, True, timer_col)
+            screen.blit(time_surf, (hud_x + 12, hud_y + 30))
+
+            no_limit_surf = self._hud_small_font.render("[ БЕЗ ЛИМИТА ]", True, (100, 140, 185))
+            screen.blit(no_limit_surf, (hud_x + 12 + time_surf.get_width() + 8, hud_y + 36))
+
+            hint_surf = self._hud_hint_font.render("R - рестарт  |  Ctrl+Z - отмена  |  ▶ - запуск", True, (95, 110, 130))
+            screen.blit(hint_surf, (hud_x + 12, hud_y + 64))

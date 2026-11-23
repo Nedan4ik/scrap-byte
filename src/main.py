@@ -3,9 +3,6 @@ import pygame
 
 from game.Game import Game
 
-# TODO
-# Может быть сделать циклы во втором уровне
-
 if __name__ == '__main__':
     argumentParser = argparse.ArgumentParser()
 

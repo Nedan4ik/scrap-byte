@@ -13,9 +13,14 @@ class Level:
         trashItems: list[Trash] | None = None,
         level_index: int = 1,
         info: str | None = None,
+        max_time: float | int | str | None = None,
     ):
         self.tile_size: int = 56
         self.level_index: int = level_index
+        if max_time is None:
+            self.max_time = 'inf' if level_index <= 2 else 300
+        else:
+            self.max_time = max_time
 
         if blocks is None:
             self.blocks = self._create_default_platform(18, 18)
@@ -193,11 +198,14 @@ class Level:
             "trash": [t.to_dict() for t in self.trashItems],
             "info": self.info,
             "level_index": self.level_index,
+            "max_time": self.max_time,
         }
 
     def load_state(self, data: dict):
         if "level_index" in data:
             self.level_index = int(data["level_index"])
+        if "max_time" in data:
+            self.max_time = data["max_time"]
         d_data = data.get("drone", {})
         if "col" in d_data and "row" in d_data:
             col, row = int(d_data["col"]), int(d_data["row"])

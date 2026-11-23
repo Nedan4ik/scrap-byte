@@ -14,6 +14,37 @@ class CodeTab:
         self.scroll_row: int = 0
         self.scroll_col: int = 0
         self.selection_start: tuple[int, int] | None = None
+        self.undo_stack: list[tuple[list[str], int, int]] = []
+        self.redo_stack: list[tuple[list[str], int, int]] = []
+
+    def save_snapshot(self):
+        if not self.undo_stack or self.undo_stack[-1][0] != self.lines:
+            self.undo_stack.append((list(self.lines), self.cursor_row, self.cursor_col))
+            if len(self.undo_stack) > 300:
+                self.undo_stack.pop(0)
+        self.redo_stack.clear()
+
+    def undo(self) -> bool:
+        if not self.undo_stack:
+            return False
+        self.redo_stack.append((list(self.lines), self.cursor_row, self.cursor_col))
+        lines, row, col = self.undo_stack.pop()
+        self.lines = list(lines)
+        self.cursor_row = min(row, len(self.lines) - 1)
+        self.cursor_col = min(col, len(self.lines[self.cursor_row]))
+        self.clearSelection()
+        return True
+
+    def redo(self) -> bool:
+        if not self.redo_stack:
+            return False
+        self.undo_stack.append((list(self.lines), self.cursor_row, self.cursor_col))
+        lines, row, col = self.redo_stack.pop()
+        self.lines = list(lines)
+        self.cursor_row = min(row, len(self.lines) - 1)
+        self.cursor_col = min(col, len(self.lines[self.cursor_row]))
+        self.clearSelection()
+        return True
 
 
     @property
@@ -100,6 +131,7 @@ class CodeTab:
         sel = self.getSelectionRange()
         if not sel:
             return False
+        self.save_snapshot()
         (r1, c1), (r2, c2) = sel
         prefix = self.lines[r1][:c1]
         suffix = self.lines[r2][c2:]
@@ -111,6 +143,7 @@ class CodeTab:
         return True
 
     def insertChar(self, char: str):
+        self.save_snapshot()
         if self.hasSelection():
             self.deleteSelection()
 
@@ -137,10 +170,12 @@ class CodeTab:
             return
 
         if self.cursor_col > 0:
+            self.save_snapshot()
             cur = self.lines[self.cursor_row]
             self.lines[self.cursor_row] = cur[: self.cursor_col - 1] + cur[self.cursor_col :]
             self.cursor_col -= 1
         elif self.cursor_row > 0:
+            self.save_snapshot()
             prev = self.lines[self.cursor_row - 1]
             cur = self.lines.pop(self.cursor_row)
             self.cursor_row -= 1
@@ -154,12 +189,15 @@ class CodeTab:
 
         cur = self.lines[self.cursor_row]
         if self.cursor_col < len(cur):
+            self.save_snapshot()
             self.lines[self.cursor_row] = cur[: self.cursor_col] + cur[self.cursor_col + 1 :]
         elif self.cursor_row < len(self.lines) - 1:
+            self.save_snapshot()
             nxt = self.lines.pop(self.cursor_row + 1)
             self.lines[self.cursor_row] += nxt
 
     def newline(self):
+        self.save_snapshot()
         if self.hasSelection():
             self.deleteSelection()
 
@@ -255,6 +293,7 @@ class CodeTab:
         if start_col == 0:
             self.backspace()
             return
+        self.save_snapshot()
         col = start_col
         while col > 0 and not (cur[col - 1].isalnum() or cur[col - 1] == "_"):
             col -= 1
@@ -273,6 +312,7 @@ class CodeTab:
         if start_col >= n:
             self.delete()
             return
+        self.save_snapshot()
         col = start_col
         while col < n and (cur[col].isalnum() or cur[col] == "_"):
             col += 1
@@ -606,14 +646,8 @@ class Renderer(Widget):
             pass
 
     def _getClipboard(self) -> str:
-        try:
-            if pygame.scrap.get_init():
-                raw = pygame.scrap.get(pygame.SCRAP_TEXT)
-                if raw:
-                    return raw.decode("utf-8", errors="ignore").replace("\x00", "")
-        except Exception:
-            pass
-        return getattr(self, "_clipboard_buffer", "")
+        # Вставка кода запрещена
+        return ""
 
     def addTab(self, title: str | None = None, content: str = "") -> CodeTab:
         if not title:
@@ -1434,9 +1468,32 @@ class Renderer(Widget):
         ctrl = bool(mods & pygame.KMOD_CTRL)
         shift = bool(mods & (pygame.KMOD_SHIFT | pygame.KMOD_CAPS))
 
+        from game.Game import Game
+        g = Game.getInstance()
+        last_u = getattr(g.keyboard, "last_unicode", "") if g and hasattr(g, "keyboard") and g.keyboard else ""
+
+        if (shift and keyCode == pygame.K_INSERT) or (ctrl and (keyCode == pygame.K_v or last_u == "\x16")):
+            if g and hasattr(g, "keyboard") and g.keyboard:
+                g.keyboard.last_unicode = ""
+            self.set_status("Вставка кода запрещена! Пишите код вручную.", (244, 75, 86))
+            return True
+
         if ctrl:
             if keyCode in (pygame.K_RETURN, pygame.K_KP_ENTER):
                 self.runCode()
+                return True
+            if keyCode == pygame.K_z or last_u == "\x1a":
+                if g and hasattr(g, "keyboard") and g.keyboard:
+                    g.keyboard.last_unicode = ""
+                if shift:
+                    tab.redo()
+                else:
+                    tab.undo()
+                return True
+            if keyCode == pygame.K_y or last_u == "\x19":
+                if g and hasattr(g, "keyboard") and g.keyboard:
+                    g.keyboard.last_unicode = ""
+                tab.redo()
                 return True
             if keyCode == pygame.K_t:
                 self.addTab()
@@ -1458,11 +1515,6 @@ class Renderer(Widget):
                 if tab.hasSelection():
                     self._setClipboard(tab.getSelectedText())
                     tab.deleteSelection()
-                return True
-            if keyCode == pygame.K_v:
-                clip = self._getClipboard()
-                if clip:
-                    tab.insertChar(clip)
                 return True
             if keyCode == pygame.K_LEFT:
                 if shift and tab.selection_start is None:
